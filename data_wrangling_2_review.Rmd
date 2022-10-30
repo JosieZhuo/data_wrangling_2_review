@@ -1,0 +1,133 @@
+---
+title: "Data_wrangling_2_review"
+author: "Qingyue Zhuo qz2493"
+date: "2022-10-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(httr)
+```
+
+### Extracting tables
+#### load data from the web
+read_html(url)
+```{r}
+url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm" # copy-paste the link
+drug_use_html = read_html(url) #read_html
+drug_use_html
+```
+
+#### extracting tables from HTML
+```{r}
+drug_use_html %>%
+  html_table()
+```
+here is the problem: the note at the bottom of each table appears in every column in the first row, we need to remove that
+```{r}
+table_marj = 
+  drug_use_html %>%
+  html_table() %>%
+  first() %>% # table of the page
+  slice(-1) # slice off the first row ?
+
+table_marj
+```
+
+```{r}
+table_marj_1 = 
+  drug_use_html %>%
+  html_table() %>%
+  first() %>%
+  slice(-2) # this will slice off the second row
+```
+
+```{r}
+url_nyc = "https://www.bestplaces.net/cost_of_living/city/new_york/new_york"
+table_nyc = 
+  read_html(url_nyc) %>%
+  html_table(header = TRUE) %>% # the head of the table if the head here, if not, the head after reading will be X1-Xn
+  first() # first table of the page
+```
+
+### CSS Selector
+```{r}
+swm_html = read_html("https://www.imdb.com/list/ls070150896/")
+```
+The information is not stored in a handy table, we'll use CSS selector in html_elements() to extract the relavent HTML code, and convert it to text, and combine these into a dataframe
+```{r}
+title_vec = 
+  swm_html %>%
+  html_elements(".lister-item-header a") %>% #html_elements(."header")
+  html_text()
+
+gross_rev_vec = 
+  swm_html %>%
+  html_elements(".text-small:nth-child(7) span:nth-child(5)") %>%
+  html_text()
+
+runtime_vec = 
+  swm_html %>%
+  html_elements(".runtime") %>%
+  html_text()
+
+swm_df = 
+  tibble(
+    title = title_vec,
+    rev = gross_rev_vec,
+    runtime = runtime_vec
+  ) # put everything you extract into a tibble
+```
+
+practice
+```{r}
+amazon_html = read_html("https://www.amazon.com/product-reviews/B00005JNBQ/ref=cm_cr_arp_d_viewopt_rvwer?ie=UTF8&reviewerType=avp_only_reviews&sortBy=recent&pageNumber=1")
+
+title_html = 
+  amazon_html %>%
+  html_elements(".a-text-bold span")%>%
+  html_text()
+
+review_html = 
+  amazon_html %>%
+  html_elements(".review-text-content span") %>%
+  html_text()
+
+stars_html = 
+  amazon_html %>%
+  html_elements("#cm_cr-review_list .review-rating") %>%
+  html_text()
+
+review = tibble(
+  title = title_html,
+  stars = stars_html,
+  review = review_html
+)
+```
+using an API
+We can access the data directly using the API to improve reproducility and make it esier to update result to reflect new data
+```{r}
+nyc_water = 
+  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.csv") %>% #get+directory+csv
+  content("parsed")
+```
+we can also import this data as a JSON file
+```{r}
+nyc_water =
+  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.json") %>% # get+directory+json
+  content("text") %>%
+  jsonlite::fromJSON() %>%
+  as_tibble()
+```
+
+```{r}
+brfss_smart2010 =
+  GET("https://chronicdata.cdc.gov/resource/acme-vg9e.csv",
+      query = list("$limit" = 5000)) %>%
+  content("parsed")
+      
+```
+
